@@ -1,0 +1,2 @@
+class DatabaseError(BaseException):
+    pass
