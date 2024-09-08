@@ -1,6 +1,10 @@
+import http.client
+
 from src.repository.currency_repository import CurrencyRepository
 from src.handler import MainHandler
 from src.mapper.currency_mapper import *
+from src.util.parse_query import get_length_and_content_type
+from src.error.application_error import ApplicationError
 
 
 class CurrencyService:
@@ -11,7 +15,7 @@ class CurrencyService:
         code = request.path.split('/')[-1].upper()
         currency = self._currency_repository.find_by_code(code)
         if currency is None:
-            return json.dumps({}).encode('utf-8')
+            raise ApplicationError(f'Валюта \'{code}\' не найдена', http.client.NOT_FOUND)
         return json.dumps(currency.to_dict()).encode('utf-8')
 
     def get_currencies(self, request=None):
@@ -19,12 +23,7 @@ class CurrencyService:
         return json.dumps([currency.to_dict() for currency in currencies]).encode('utf-8')
 
     def save_currency(self, request: MainHandler):
-        length = int(request.headers.get('Content-Length', 0))
-        if not length:
-            raise Exception('Content-Length - не задан header')
-        content_type = request.headers.get('Content-Type', None)
-        if not content_type:
-            raise Exception('Content-Type - не задан в header')
+        length, content_type = get_length_and_content_type(request.headers)
 
         data = request.rfile.read(length).decode('utf-8')
         match content_type:
@@ -33,5 +32,7 @@ class CurrencyService:
             case 'application/json':
                 currency = json_to_currency(data)
             case _:
-                raise Exception(f'Не известный Content-Type - {content_type}')
+                raise ApplicationError(f'Не известный Content-Type - {content_type}',
+                                       http.client.BAD_REQUEST)
+
         return json.dumps(self._currency_repository.save(currency).to_dict()).encode('utf-8')

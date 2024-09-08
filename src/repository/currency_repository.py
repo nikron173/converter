@@ -1,8 +1,11 @@
+from http.client import BAD_REQUEST, BAD_GATEWAY
+
 from src.repository.repository import Repository
 from src.entity.currency import Currency
 from src.mapper.currency_mapper import object_to_currency
 from typing import List
-from src.error.database_error import DatabaseError
+from sqlite3 import DatabaseError as db3
+from src.error.application_error import ApplicationError
 
 
 class CurrencyRepository(Repository):
@@ -16,8 +19,8 @@ class CurrencyRepository(Repository):
             if obj is None:
                 return None
             return object_to_currency(**obj)
-        except Exception as e:
-            raise DatabaseError(e)
+        except db3 as e:
+            raise ApplicationError(str(e), BAD_GATEWAY)
         finally:
             if con:
                 con.close()
@@ -32,8 +35,8 @@ class CurrencyRepository(Repository):
             if obj is None:
                 return None
             return object_to_currency(**obj)
-        except Exception as e:
-            raise DatabaseError(e)
+        except db3 as e:
+            raise ApplicationError(str(e), BAD_GATEWAY)
         finally:
             if con:
                 con.close()
@@ -47,8 +50,8 @@ class CurrencyRepository(Repository):
             cursor.execute(select_all)
             for obj in cursor:
                 currencies.append(object_to_currency(**obj))
-        except Exception as e:
-            raise DatabaseError(e)
+        except db3 as e:
+            raise ApplicationError(str(e), BAD_GATEWAY)
         finally:
             if con:
                 con.close()
@@ -65,8 +68,8 @@ class CurrencyRepository(Repository):
                             'sign': obj.sign,
                             'id': obj_id}
                            )
-        except Exception as e:
-            raise DatabaseError(e)
+        except db3 as e:
+            raise ApplicationError(str(e), BAD_GATEWAY)
         finally:
             if con:
                 con.close()
@@ -77,8 +80,8 @@ class CurrencyRepository(Repository):
         try:
             cursor = con.cursor()
             cursor.execute(delete_by_id, {'id': obj_id})
-        except Exception as e:
-            raise DatabaseError(e)
+        except db3 as e:
+            raise ApplicationError(str(e), BAD_GATEWAY)
         finally:
             if con:
                 con.close()
@@ -95,8 +98,11 @@ class CurrencyRepository(Repository):
                            )
             obj.id = cursor.lastrowid
             return obj
-        except Exception as e:
-            raise DatabaseError(e)
+        except db3 as e:
+            message = str(e)
+            if e.sqlite_errorcode == 2067:
+                message = f'Валюта \'{obj.code}\' уже есть в базе данных'
+            raise ApplicationError(message, BAD_REQUEST)
         finally:
             if con:
                 con.close()

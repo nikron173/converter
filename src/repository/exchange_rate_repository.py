@@ -1,9 +1,11 @@
 from typing import List
 from decimal import Decimal
-from src.error.database_error import DatabaseError
+from http.client import BAD_REQUEST, BAD_GATEWAY
 from src.repository.repository import Repository
 from src.entity.exchange_rate import ExchangeRate
 from src.mapper.exchange_rate_mapper import object_to_exchange_rate
+from sqlite3.dbapi2 import DatabaseError as db3
+from src.error.application_error import ApplicationError
 
 
 class ExchangeRateRepository(Repository):
@@ -35,8 +37,8 @@ class ExchangeRateRepository(Repository):
             if obj is None:
                 return None
             return object_to_exchange_rate(**obj)
-        except Exception as e:
-            raise DatabaseError(e)
+        except db3 as e:
+            raise ApplicationError(str(e), BAD_GATEWAY)
         finally:
             if con:
                 con.close()
@@ -59,8 +61,8 @@ class ExchangeRateRepository(Repository):
             if obj is None:
                 return None
             return object_to_exchange_rate(**obj)
-        except Exception as e:
-            raise DatabaseError(e)
+        except db3 as e:
+            raise ApplicationError(str(e), BAD_GATEWAY)
         finally:
             if con:
                 con.close()
@@ -81,32 +83,27 @@ class ExchangeRateRepository(Repository):
             cursor.execute(select_all)
             for obj in cursor:
                 exchange_rates.append(object_to_exchange_rate(**obj))
-        except Exception as e:
-            raise DatabaseError(e)
+        except db3 as e:
+            raise ApplicationError(str(e), BAD_GATEWAY)
         finally:
             if con:
                 con.close()
         return exchange_rates
 
-    def update(self, code: str, rate: Decimal) -> None:
+    def update(self, id: int, rate: Decimal) -> None:
         update_currency = '''UPDATE exchange_rates SET rate = :rate
-         WHERE id = (
-            SELECT e.id
-            FROM exchange_rate e 
-                JOIN currencies b ON b.id = e.base_currency_id
-                JOIN currencies t ON t.id = e.target_currency_id
-            WHERE b.code || t.code = :code
-         )'''
+         WHERE id = :id
+         '''
         con = self._pool.get_connection()
         try:
             cursor = con.cursor()
             cursor.execute(update_currency,
                            {
-                               'rate': rate,
-                               'code': code}
+                               'rate': str(rate.quantize(Decimal('0.0001'))),
+                               'id': id}
                            )
-        except Exception as e:
-            raise DatabaseError(e)
+        except db3 as e:
+            raise ApplicationError(str(e), BAD_GATEWAY)
         finally:
             if con:
                 con.close()
@@ -117,16 +114,19 @@ class ExchangeRateRepository(Repository):
         try:
             cursor = con.cursor()
             cursor.execute(delete_by_id, {'id': obj_id})
-        except Exception as e:
-            raise DatabaseError(e)
+        except db3 as e:
+            raise ApplicationError(str(e), BAD_GATEWAY)
         finally:
             if con:
                 con.close()
 
     def save(self, obj: ExchangeRate) -> ExchangeRate:
-        save_exchange_rate = 'INSERT INTO exchange_rates VALUES (:base, :target, :rate)'
+        save_exchange_rate = '''INSERT INTO exchange_rates 
+        (base_currency_id, target_currency_id, rate) 
+        VALUES (:base, :target, :rate)'''
         con = self._pool.get_connection()
         try:
+            print(obj.to_dict())
             cursor = con.cursor()
             cursor.execute(save_exchange_rate,
                            {'base': obj.base.id,
@@ -136,12 +136,11 @@ class ExchangeRateRepository(Repository):
                            )
             obj.id = cursor.lastrowid
             return obj
-        except Exception as e:
-            raise DatabaseError(e)
+        except db3 as e:
+            message = str(e)
+            if e.sqlite_errorcode == 2067:
+                message = f'Конвертер \'{obj.base.code.upper()}{obj.target.code.upper()}\' уже есть в базе данных'
+            raise ApplicationError(message, BAD_REQUEST)
         finally:
             if con:
                 con.close()
-
-
-# b.id as t_id, b.code as t_code, b.full_name as t_full_name, b.sign as t_sign,
-# t.id as b_id, t.code as b_code, t.full_name as b_full_name, t.sign as b_sign,

@@ -46,7 +46,7 @@ def main():
                          'PATCH': exchange_rate_service.update_exchange_rate
                      }
                      )
-    router.add_route(r'^/exchange$',
+    router.add_route(r'^/exchange\?[\w\W]+$',
                      {
                          'GET': exchange_rate_service.exchange
                      }

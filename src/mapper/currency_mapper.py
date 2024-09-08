@@ -26,7 +26,7 @@ def json_to_currency(data: str) -> Currency:
 def get_currency_from_dict(data: Dict) -> Currency:
     currency = Currency()
     currency.code = data.get('code')
-    currency.full_name = data.get('full_name')
+    currency.full_name = data.get('name')
     currency.sign = data.get('sign')
     if currency.code and currency.full_name and currency.sign:
         return currency
