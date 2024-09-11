@@ -2,10 +2,12 @@ import sqlite3
 import time
 
 from src.error.database_error import DatabaseError
+from threading import Lock
 
 
 class ConnectionPool:
     def __init__(self, database: str, count_connection: int):
+        self._lock = Lock()
         self.__database = database
         self.__count_connection = count_connection
         self.__queue = []
@@ -25,7 +27,10 @@ class ConnectionPool:
 
     def get_connection(self) -> sqlite3.Connection:
         try:
-            return self.__queue.pop()
+            self._lock.acquire()
+            con = self.__queue.pop()
+            self._lock.release()
+            return con
         except IndexError:
             print('Список коннектов пуст...\nЖдем 5 секунд')
             time.sleep(5)
@@ -33,7 +38,9 @@ class ConnectionPool:
 
     def close_connection(self, connection):
         if len(self.__queue) <= self.__count_connection:
+            self._lock.acquire()
             self.__queue.append(connection)
+            self._lock.release()
             print(f'Коннект: {connection} освободился и добавился в pool')
 
     def close_all_connection(self):

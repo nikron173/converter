@@ -5,7 +5,7 @@ from src.error.router_error import RouterError
 
 class Router:
 
-    __allow_methods = {'GET', 'POST', 'PATCH', 'DELETE'}
+    __allow_methods = {'GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'}
 
     def __init__(self):
         self._routes = {}

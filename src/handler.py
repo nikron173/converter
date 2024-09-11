@@ -9,10 +9,6 @@ from src.error.application_error import ApplicationError
 class MainHandler(BaseHTTPRequestHandler):
     _router = None
 
-    def __init__(self, request, client_address, server_class):
-        self.server_class = server_class
-        super().__init__(request, client_address, server_class)
-
     @classmethod
     def set_router(cls, router: Router):
         cls._router = router
@@ -30,12 +26,16 @@ class MainHandler(BaseHTTPRequestHandler):
     def do_PATCH(self):
         self.response(OK)
 
+    def do_OPTIONS(self):
+        self.response(OK)
+
     def not_found_method(self, path):
         response = json.dumps({"Error": f"path '{path}' not found", "time": str(datetime.datetime.now())}).encode(
             'utf8')
         self.send_response(NOT_FOUND)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(response)))
+        self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
         self.wfile.write(response)
 
@@ -43,6 +43,7 @@ class MainHandler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(response)))
+        self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
         self.wfile.write(response)
 

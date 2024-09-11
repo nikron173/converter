@@ -2,9 +2,10 @@ import json
 import urllib.parse
 from http.client import NOT_FOUND, BAD_REQUEST
 from src.repository.exchange_rate_repository import ExchangeRateRepository
+from src.repository.currency_repository import CurrencyRepository
 from src.mapper.exchange_rate_mapper import json_to_exchange_rate
 from src.handler import MainHandler
-from decimal import Decimal, ConversionSyntax
+from decimal import Decimal
 from src.util.parse_query import get_dict_query_url
 from src.util.parse_query import get_dict_form
 from src.util.parse_query import get_length_and_content_type
@@ -12,8 +13,9 @@ from src.error.application_error import ApplicationError
 
 
 class ExchangeRateService:
-    def __init__(self, exchange_rate_repo: ExchangeRateRepository):
+    def __init__(self, exchange_rate_repo: ExchangeRateRepository, currency_repo: CurrencyRepository):
         self._exchange_rate_repo = exchange_rate_repo
+        self._currency_repo = currency_repo
 
     def get_exchange_rate(self, request: MainHandler):
         code = request.path.split('/')[-1].upper()
@@ -28,13 +30,13 @@ class ExchangeRateService:
 
     def update_exchange_rate(self, request: MainHandler):
         code = request.path.split('/')[-1].upper()
-        exchange_rate = self._exchange_rate_repo.find_by_code(code.upper())
+        exchange_rate = self._exchange_rate_repo.find_by_code(code)
         if exchange_rate is None:
             raise ApplicationError(f'Конвертор \'{code}\' не найден', NOT_FOUND)
 
         length, content_type = get_length_and_content_type(request.headers)
 
-        if 'application/x-www-form-urlencoded' != content_type:
+        if 'application/x-www-form-urlencoded' not in content_type:
             raise ApplicationError('Content-Type должен быть в формате \'application/x-www-form-urlencoded\'',
                                    BAD_REQUEST)
 
@@ -48,7 +50,7 @@ class ExchangeRateService:
             rate = Decimal(rate_str)
             if rate < 0:
                 raise ApplicationError('Rate должен быть положительным числом', BAD_REQUEST)
-        except ConversionSyntax:
+        except Exception:
             raise ApplicationError('Rate должен быть числом', BAD_REQUEST)
         self._exchange_rate_repo.update(exchange_rate.id, rate)
         exchange_rate.rate = rate
@@ -57,12 +59,22 @@ class ExchangeRateService:
     def save_exchange_rate(self, request: MainHandler):
         length, content_type = get_length_and_content_type(request.headers)
 
-        if content_type != 'application/json':
+        if 'application/json' not in content_type:
             raise ApplicationError('Content-Type должен быть в формате \'application/json\'',
                                    BAD_REQUEST)
 
         data = request.rfile.read(length).decode('utf-8')
         exchange_rate = json_to_exchange_rate(data)
+        base_currency = self._currency_repo.find_by_code(exchange_rate.base.code)
+        if not base_currency:
+            raise ApplicationError(f'Base валюта \'{exchange_rate.base.code}\' не найдена', BAD_REQUEST)
+
+        target_currency = self._currency_repo.find_by_code(exchange_rate.target.code)
+        if not target_currency:
+            raise ApplicationError(f'Target валюта \'{exchange_rate.target.code}\' не найдена', BAD_REQUEST)
+
+        exchange_rate.base.id = base_currency.id
+        exchange_rate.target.id = target_currency.id
 
         return json.dumps(self._exchange_rate_repo.save(exchange_rate).to_dict()).encode('utf-8')
 
@@ -77,11 +89,11 @@ class ExchangeRateService:
                                    BAD_REQUEST)
         try:
             amount = Decimal(amount_str)
-        except Exception as e:
+        except Exception:
             raise ApplicationError('Amount должен быть числом', BAD_REQUEST)
         exchange_rate = self._exchange_rate_repo.find_by_code(f'{base}{target}'.upper())
         if not exchange_rate:
-            raise ApplicationError(f'Конвертор \'{base}{target}\' не найден', NOT_FOUND)
+            raise ApplicationError(f'Конвертор \'{base}{target}\' не найден', BAD_REQUEST)
         converted_amount = (amount * exchange_rate.rate).quantize(Decimal('0.0001'))
         response = exchange_rate.to_dict()
         response['amount'] = str(amount)

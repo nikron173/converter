@@ -10,18 +10,13 @@ from src.router import Router
 from src.handler import MainHandler
 
 
-class Server(http.server.HTTPServer):
-    def __init__(self, address, request_handler):
-        super().__init__(address, request_handler)
-
-
 def main():
     pool = ConnectionPool('database.db', 5)
     init_db(['init.sql', 'data.sql'], pool.get_connection())
     currency_repo = CurrencyRepository(pool)
     exchange_rate_repo = ExchangeRateRepository(pool)
     currency_service = CurrencyService(currency_repo)
-    exchange_rate_service = ExchangeRateService(exchange_rate_repo)
+    exchange_rate_service = ExchangeRateService(exchange_rate_repo, currency_repo)
     router = Router()
     router.add_route(r'^/currency/(\w+)$',
                      {
@@ -43,7 +38,8 @@ def main():
     router.add_route(r'^/exchangeRate/(\w+)$',
                      {
                          'GET': exchange_rate_service.get_exchange_rate,
-                         'PATCH': exchange_rate_service.update_exchange_rate
+                         'PATCH': exchange_rate_service.update_exchange_rate,
+                         'OPTIONS': exchange_rate_service.update_exchange_rate,
                      }
                      )
     router.add_route(r'^/exchange\?[\w\W]+$',
@@ -53,7 +49,7 @@ def main():
                      )
     MainHandler.set_router(router)
     try:
-        server = Server(('', 8889), MainHandler)
+        server = http.server.HTTPServer(('', 8080), MainHandler)
         print(f'Starting server {server.server_address}...')
         server.serve_forever()
     except Exception as e:

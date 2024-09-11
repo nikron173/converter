@@ -1,8 +1,10 @@
 import json
 import urllib.parse
 from typing import Dict
+from http.client import BAD_REQUEST
 
 from src.entity.currency import Currency
+from src.error.application_error import ApplicationError
 
 
 def object_to_currency(**kwargs) -> Currency:
@@ -30,4 +32,4 @@ def get_currency_from_dict(data: Dict) -> Currency:
     currency.sign = data.get('sign')
     if currency.code and currency.full_name and currency.sign:
         return currency
-    raise Exception(f'Заданы не все параметры валюты')
+    raise ApplicationError(f'Заданы не все параметры валюты', BAD_REQUEST)

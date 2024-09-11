@@ -131,7 +131,7 @@ class ExchangeRateRepository(Repository):
             cursor.execute(save_exchange_rate,
                            {'base': obj.base.id,
                             'target': obj.target.id,
-                            'rate': obj.rate
+                            'rate': str(obj.rate)
                             }
                            )
             obj.id = cursor.lastrowid

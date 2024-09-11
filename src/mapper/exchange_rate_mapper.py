@@ -1,10 +1,12 @@
 import json
 from decimal import Decimal
 from typing import Dict
+from http.client import BAD_REQUEST
 
 from src.entity.exchange_rate import ExchangeRate
 from src.mapper.currency_mapper import object_to_currency
 from src.mapper.currency_mapper import get_currency_from_dict
+from src.error.application_error import ApplicationError
 
 
 def object_to_exchange_rate(**kwargs) -> ExchangeRate:
@@ -44,4 +46,4 @@ def get_data_dict(data: Dict) -> ExchangeRate:
     exchange_rate.rate = Decimal(data.get('rate'))
     if exchange_rate.rate:
         return exchange_rate
-    raise Exception(f'Заданы не все параметры обменника')
+    raise ApplicationError(f'Заданы не все параметры обменника', BAD_REQUEST)
